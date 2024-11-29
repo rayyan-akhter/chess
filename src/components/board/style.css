@@ -1,0 +1,35 @@
+.chess {
+  height: 100vh;
+  display: flex;
+  /* gap: 30px; */
+  justify-content: center;
+  align-items: center;
+  object-fit: contain;
+}
+
+.chessBoard {
+  border: solid 10px #49474a;
+}
+.row {
+  display: flex;
+}
+
+.promotion-modal {
+  position: fixed;
+  top: 18%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: #968F95;
+  padding: 20px;
+  z-index: 10;
+  cursor: pointer;
+  border: solid 5px #49474a;
+}
+.capturedPiece {
+  display: flex;
+  /* border:  1px solid black; */
+  flex-wrap: wrap;
+  width: 200px;
+
+}
+
