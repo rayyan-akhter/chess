@@ -1,14 +1,20 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect, useCallback } from "react";
 import Cell from "../Cell";
+import GameControls from "../GameControls";
+import Notification from "../Notification";
+import Timer from "../Timer";
 import "./style.css";
-import { PIECESIMAGES, INITIALBOARD } from "./boardconstant";
+import { PIECESIMAGES, INITIALBOARD, GAME_STATES, COLORS, TIMER_MODES, TIMER_DURATIONS } from "./boardconstant";
+import ChessService from "../../services/chessService";
+import AIService from "../../services/aiService";
 
-const Board = () => {
+const Board = ({ gameMode = '2player', playerColor: initialPlayerColor = 'white', aiDifficulty: initialAIDifficulty = 'medium' }) => {
   const [board, setBoard] = useState(INITIALBOARD);
-  const [selectedPiece, setSelectedPiece] = useState("null");
+  const [selectedPiece, setSelectedPiece] = useState(null);
   const [possibleMoves, setPossibleMoves] = useState([]);
-  const [capturedPiecs, setCapturedpiecs] = useState({ white: [], black: [] });
-  const lastPieceSelected = useRef("b");
+  const [capturedPieces, setCapturedPieces] = useState({ white: [], black: [] });
+  const [currentPlayer, setCurrentPlayer] = useState(COLORS.WHITE);
+  const [gameState, setGameState] = useState(GAME_STATES.PLAYING);
   const [promotion, setPromotion] = useState({
     active: false,
     rowIndex: null,
@@ -16,235 +22,307 @@ const Board = () => {
     color: null,
   });
 
+  // AI and game settings
+  const [aiEnabled, setAiEnabled] = useState(gameMode === 'ai');
+  const [aiDifficulty, setAiDifficulty] = useState(initialAIDifficulty);
+  const [playerColor, setPlayerColor] = useState(initialPlayerColor === 'white' ? COLORS.WHITE : COLORS.BLACK);
+  const [isAITurn, setIsAITurn] = useState(false);
+  
+  // Timer settings
+  const [timerMode, setTimerMode] = useState(TIMER_MODES.NONE);
+  const [whiteTime, setWhiteTime] = useState(TIMER_DURATIONS[TIMER_MODES.TEN_MIN]);
+  const [blackTime, setBlackTime] = useState(TIMER_DURATIONS[TIMER_MODES.TEN_MIN]);
+  const [timerInterval, setTimerInterval] = useState(null);
+  
+  // Notifications
+  const [notification, setNotification] = useState(null);
+  
+  // Services
+  const chessService = useRef(new ChessService());
+  const aiService = useRef(null);
+
+  // Timer functions
+  const startTimer = useCallback(() => {
+    if (timerMode === TIMER_MODES.NONE || gameState !== GAME_STATES.PLAYING) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      if (currentPlayer === COLORS.WHITE) {
+        setWhiteTime(prev => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            handleTimeout(COLORS.WHITE);
+            return 0;
+          }
+          return prev - 1;
+        });
+      } else {
+        setBlackTime(prev => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            handleTimeout(COLORS.BLACK);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }
+    }, 1000);
+
+    setTimerInterval(interval);
+  }, [timerMode, currentPlayer, gameState, handleTimeout]);
+
+  const stopTimer = useCallback(() => {
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      setTimerInterval(null);
+    }
+  }, [timerInterval]);
+
+  const handleTimeout = useCallback((timeoutPlayer) => {
+    stopTimer();
+    setGameState(GAME_STATES.TIMEOUT);
+    setNotification({
+      message: `⏰ Time's up! ${timeoutPlayer === 'w' ? 'White' : 'Black'} ran out of time. ${timeoutPlayer === 'w' ? 'Black' : 'White'} wins!`,
+      type: 'error'
+    });
+  }, [stopTimer]);
+
+  const resetTimer = useCallback(() => {
+    stopTimer();
+    if (timerMode !== TIMER_MODES.NONE) {
+      const duration = TIMER_DURATIONS[timerMode];
+      setWhiteTime(duration);
+      setBlackTime(duration);
+    }
+  }, [timerMode, stopTimer]);
+  
+  // Initialize AI service
+  useEffect(() => {
+    const apiKey = process.env.REACT_APP_GEMINI_API_KEY || 'your-api-key-here';
+    aiService.current = new AIService(apiKey);
+    
+    // Test AI functionality
+    import('../../testAI').then(module => {
+      module.default();
+    });
+    
+    if (!process.env.REACT_APP_GEMINI_API_KEY) {
+      setNotification({
+        message: '🔧 Demo Mode: AI is running with smart random moves. Add your Gemini API key for full AI functionality.',
+        type: 'info'
+      });
+    }
+  }, []);
+
+  const executeMove = useCallback((fromRow, fromCol, toRow, toCol, moveData = {}) => {
+    const piece = board[fromRow][fromCol];
+    const capturedPiece = board[toRow][toCol];
+    
+    // Update captured pieces
+    if (capturedPiece) {
+      setCapturedPieces(prev => ({
+        ...prev,
+        [capturedPiece[1] === 'w' ? 'white' : 'black']: [
+          ...prev[capturedPiece[1] === 'w' ? 'white' : 'black'],
+          capturedPiece,
+        ],
+      }));
+    }
+
+    // Execute move using chess service
+    const newBoard = chessService.current.executeMove(board, fromRow, fromCol, toRow, toCol, moveData);
+    setBoard(newBoard);
+
+    // Handle pawn promotion
+    if (piece[0].toUpperCase() === 'P' && 
+        ((piece[1] === 'w' && toRow === 0) || (piece[1] === 'b' && toRow === 7))) {
+      setPromotion({ active: true, rowIndex: toRow, colIndex: toCol, color: piece[1] });
+      setSelectedPiece(null);
+      setPossibleMoves([]);
+      removeHighlightClass();
+      return;
+    }
+
+    // Switch turns
+    setCurrentPlayer(currentPlayer === COLORS.WHITE ? COLORS.BLACK : COLORS.WHITE);
+    setSelectedPiece(null);
+    setPossibleMoves([]);
+    removeHighlightClass();
+  }, [board, currentPlayer]);
+
+  const makeAIMove = useCallback(async () => {
+    console.log('🤖 AI turn started...');
+    console.log('Current player:', currentPlayer);
+    console.log('AI enabled:', aiEnabled);
+    console.log('Player color:', playerColor);
+    
+    if (!aiService.current) {
+      console.log('❌ AI service not available');
+      setIsAITurn(false);
+      return;
+    }
+    
+    try {
+      console.log('🔄 Generating AI move...');
+      const aiMove = await aiService.current.getAIMove(board, currentPlayer, aiDifficulty);
+      console.log('AI move result:', aiMove);
+      
+      if (aiMove) {
+        console.log('✅ Executing AI move:', aiMove);
+        executeMove(aiMove.fromRow, aiMove.fromCol, aiMove.toRow, aiMove.toCol, aiMove);
+      } else {
+        console.log('❌ No AI move generated');
+      }
+    } catch (error) {
+      console.error('❌ AI move failed:', error);
+    } finally {
+      console.log('🏁 AI turn finished');
+      setIsAITurn(false);
+    }
+  }, [board, currentPlayer, aiDifficulty, aiEnabled, playerColor, executeMove]);
+
+  // Timer effect
+  useEffect(() => {
+    if (timerMode !== TIMER_MODES.NONE && gameState === GAME_STATES.PLAYING) {
+      startTimer();
+    } else {
+      stopTimer();
+    }
+
+    return () => {
+      if (timerInterval) {
+        clearInterval(timerInterval);
+      }
+    };
+  }, [timerMode, currentPlayer, gameState, startTimer, stopTimer, timerInterval]);
+
+  // Check game state after each move
+  useEffect(() => {
+    const newGameState = chessService.current.getGameState(board, currentPlayer);
+    setGameState(newGameState);
+    
+    // Clear previous notifications
+    setNotification(null);
+    
+    // Show game end notifications
+    if (newGameState === GAME_STATES.CHECKMATE) {
+      stopTimer();
+      setNotification({
+        message: `🎉 Checkmate! ${currentPlayer === 'w' ? 'Black' : 'White'} wins!`,
+        type: 'success'
+      });
+    } else if (newGameState === GAME_STATES.STALEMATE) {
+      stopTimer();
+      setNotification({
+        message: '🤝 Stalemate! The game is a draw.',
+        type: 'warning'
+      });
+    } else if (newGameState === GAME_STATES.CHECK) {
+      setNotification({
+        message: `⚠️ ${currentPlayer === 'w' ? 'White' : 'Black'} is in check!`,
+        type: 'warning'
+      });
+    }
+    
+    // If game is over, don't allow AI to move
+    if (newGameState === GAME_STATES.CHECKMATE || newGameState === GAME_STATES.STALEMATE) {
+      setIsAITurn(false);
+      return;
+    }
+    
+    // AI turn logic
+    console.log('🔄 Checking AI turn logic...');
+    console.log('AI enabled:', aiEnabled);
+    console.log('Current player:', currentPlayer);
+    console.log('Player color:', playerColor);
+    console.log('Is AI turn:', isAITurn);
+    
+    if (aiEnabled && currentPlayer !== playerColor && !isAITurn) {
+      console.log('✅ Starting AI turn...');
+      setIsAITurn(true);
+      setTimeout(() => {
+        makeAIMove();
+      }, 500);
+    } else {
+      console.log('❌ AI turn conditions not met');
+    }
+  }, [board, currentPlayer, aiEnabled, playerColor, isAITurn, makeAIMove, stopTimer]);
+
   const selectPiece = (rowIndex, colIndex) => {
+    // Don't allow moves during AI turn or if game is over
+    if (isAITurn || gameState === GAME_STATES.CHECKMATE || gameState === GAME_STATES.STALEMATE) {
+      return;
+    }
+    
+    // Don't allow AI pieces to be selected by player (only in AI mode)
+    if (gameMode === 'ai' && aiEnabled && currentPlayer !== playerColor) {
+      return;
+    }
+
     const piece = board[rowIndex][colIndex];
 
+    // If a piece is already selected, try to move
     if (selectedPiece) {
       const isMoveAllowed = possibleMoves.some(
         (move) => move.x === rowIndex && move.y === colIndex
       );
 
       if (isMoveAllowed) {
-        movePiece(rowIndex, colIndex);
-        removeHighlightClass();
-        lastPieceSelected.current = selectedPiece.piece.slice(-1);
+        const moveData = possibleMoves.find(
+          (move) => move.x === rowIndex && move.y === colIndex
+        );
+        executeMove(selectedPiece.rowIndex, selectedPiece.colIndex, rowIndex, colIndex, moveData);
         return;
       }
 
-      const isSameColor =
-        piece && selectedPiece.piece && piece[1] === selectedPiece.piece[1];
+      // If clicking on same color piece, select it instead
+      const isSameColor = piece && selectedPiece.piece && piece[1] === selectedPiece.piece[1];
       if (isSameColor) {
         setSelectedPiece({ piece, rowIndex, colIndex });
         removeHighlightClass();
-        const moves = showPossibleMoves({ piece, rowIndex, colIndex });
+        const moves = chessService.current.getPossibleMoves(board, rowIndex, colIndex);
         setPossibleMoves(moves);
+        highlightMoves(moves);
         return;
       }
 
+      // Deselect current piece
       removeHighlightClass();
       setSelectedPiece(null);
       setPossibleMoves([]);
-    } else if (piece) {
-      if (piece[1] === lastPieceSelected.current) return;
+    }
+
+    // Select new piece if it belongs to current player
+    if (piece && piece[1] === currentPlayer) {
       setSelectedPiece({ piece, rowIndex, colIndex });
-      const moves = showPossibleMoves({ piece, rowIndex, colIndex });
+      const moves = chessService.current.getPossibleMoves(board, rowIndex, colIndex);
       setPossibleMoves(moves);
+      highlightMoves(moves);
     }
   };
 
-  const movePiece = (rowIndex, colIndex) => {
-    if (!selectedPiece) return;
-    const {
-      piece,
-      rowIndex: oldRowIndex,
-      colIndex: oldColIndex,
-    } = selectedPiece;
-    const color = piece[1];
-    const newBoard = board.map((row) => row.slice());
-    newBoard[oldRowIndex][oldColIndex] = "";
-    newBoard[rowIndex][colIndex] = piece;
 
-    const targetPiece = board[rowIndex][colIndex];
-    if (targetPiece) {
-      setCapturedpiecs((prev) => ({
-        ...prev,
-        [targetPiece[1] === "w" ? "white" : "black"]: [
-          ...prev[targetPiece[1] === "w" ? "white" : "black"],
-          targetPiece,
-        ],
-      }));
-    }
-    newBoard[oldRowIndex][oldColIndex] = "";
-    newBoard[rowIndex][colIndex] = piece;
-    if (
-      (piece[0] === "P" || piece[0] === "p") &&
-      ((color === "w" && rowIndex === 0) || (color === "b" && rowIndex === 7))
-    ) {
-      setPromotion({ active: true, rowIndex, colIndex, color });
-      setBoard(newBoard);
-      return;
-    }
-    setBoard(newBoard);
-    setSelectedPiece(null);
-    setPossibleMoves([]);
-  };
 
-  const showPossibleMoves = ({ piece, rowIndex, colIndex }) => {
-    const type = piece[0].toUpperCase();
-    const color = piece[1];
-    let possibleMoves = [];
-    switch (type) {
-      case "K":
-        possibleMoves = getKingMoves(rowIndex, colIndex, color);
-        break;
-      case "Q":
-        possibleMoves = getQueenMoves(rowIndex, colIndex, color);
-        break;
-      case "R":
-        possibleMoves = getRookMoves(rowIndex, colIndex, color);
-        break;
-      case "B":
-        possibleMoves = getBishopMoves(rowIndex, colIndex, color);
-        break;
-      case "N":
-        possibleMoves = getKnightMoves(rowIndex, colIndex, color);
-        break;
-      case "P":
-        possibleMoves = getPawnMoves(rowIndex, colIndex, color);
-        break;
-
-      default:
-        possibleMoves = [];
-    }
-
-    possibleMoves.forEach((move) => {
+  const highlightMoves = (moves) => {
+    moves.forEach((move) => {
       const { x, y } = move;
       const cell = document.getElementById(`${x}-${y}`);
+      if (cell) {
       cell.classList.add("highlight");
-    });
-    return possibleMoves;
-  };
-
-  const isWithinTheBoard = (x, y) => {
-    return x >= 0 && x < 8 && y >= 0 && y < 8;
-  };
-
-  const isBlockedByItsPiece = (x, y, color) => {
-    const piece = board[x][y];
-    return piece?.[1] === color;
-  };
-
-  const getKingMoves = (x, y, color) => {
-    const kingsMove = [
-      { x: x + 1, y },
-      { x: x - 1, y },
-      { x: x + 1, y: y + 1 },
-      { x: x + 1, y: y - 1 },
-
-      { x: x, y: y - 1 },
-      { x: x, y: y + 1 },
-      { x: x - 1, y: y - 1 },
-      { x: x - 1, y: y + 1 },
-    ];
-    return kingsMove.filter((move) => {
-      const { x, y } = move;
-      return isWithinTheBoard(x, y) && !isBlockedByItsPiece(x, y, color);
-    });
-  };
-
-  const getRookMoves = (x, y, color) => {
-    const rookMove = [];
-    const rookDirection = [
-      [1, 0],
-      [-1, 0],
-      [0, 1],
-      [0, -1],
-    ];
-    rookDirection.forEach(([rdx, rdy]) => {
-      let newX = x + rdx,
-        newY = y + rdy;
-      while (
-        isWithinTheBoard(newX, newY) &&
-        !isBlockedByItsPiece(newX, newY, color)
-      ) {
-        rookMove.push({ x: newX, y: newY });
-        if (board[newX][newY]) break;
-        newX += rdx;
-        newY += rdy;
       }
     });
-    return rookMove;
   };
 
-  const getBishopMoves = (x, y, color) => {
-    const bishopMove = [];
-    const bishopDirection = [
-      [1, 1],
-      [-1, -1],
-      [1, -1],
-      [-1, 1],
-    ];
-    bishopDirection.forEach(([rdx, rdy]) => {
-      let newX = x + rdx,
-        newY = y + rdy;
-      while (
-        isWithinTheBoard(newX, newY) &&
-        !isBlockedByItsPiece(newX, newY, color)
-      ) {
-        bishopMove.push({ x: newX, y: newY });
-        if (board[newX][newY]) break;
-        newX += rdx;
-        newY += rdy;
-      }
-    });
-    return bishopMove;
-  };
-
-  const getQueenMoves = (x, y, color) => {
-    return [...getRookMoves(x, y, color), ...getBishopMoves(x, y, color)];
-  };
-
-  const getKnightMoves = (x, y, color) => {
-    const knightMove = [
-      { x: x + 2, y: y + 1 },
-      { x: x + 2, y: y - 1 },
-      { x: x - 2, y: y + 1 },
-      { x: x - 2, y: y - 1 },
-
-      { x: x + 1, y: y + 2 },
-      { x: x - 1, y: y + 2 },
-      { x: x - 1, y: y - 2 },
-      { x: x + 1, y: y - 2 },
-    ];
-
-    return knightMove.filter((move) => {
-      const { x, y } = move;
-      return isWithinTheBoard(x, y) && !isBlockedByItsPiece(x, y, color);
-    });
-  };
-
-  const getPawnMoves = (x, y, color) => {
-    const pawnMoves = [];
-    const direction = color === "w" ? -1 : 1;
-    const startRow = color === "w" ? 6 : 1;
-
-    if (isWithinTheBoard(x + direction, y) && !board[x + direction][y]) {
-      pawnMoves.push({ x: x + direction, y });
-      if (x === startRow && !board[x + 2 * direction][y]) {
-        pawnMoves.push({ x: x + 2 * direction, y });
+  const removeHighlightClass = () => {
+    for (let x = 0; x < 8; x++) {
+      for (let y = 0; y < 8; y++) {
+        const element = document.getElementById(`${x}-${y}`);
+        if (element) {
+          element.classList.remove("highlight");
+        }
       }
     }
-
-    const captureMoves = [
-      { x: x + direction, y: y + 1 },
-      { x: x + direction, y: y - 1 },
-    ];
-    captureMoves.forEach(({ x, y }) => {
-      if (isWithinTheBoard(x, y) && board[x][y] && board[x][y][1] !== color) {
-        pawnMoves.push({ x, y });
-      }
-    });
-    return pawnMoves;
   };
 
   const pawnPromotion = (newPiece) => {
@@ -259,34 +337,138 @@ const Board = () => {
       colIndex: null,
       color: null,
     });
-    setSelectedPiece(null);
+    
+    // Switch turns after promotion
+    setCurrentPlayer(currentPlayer === COLORS.WHITE ? COLORS.BLACK : COLORS.WHITE);
   };
 
-  const removeHighlightClass = () => {
-    for (let x = 0; x < 8; x++) {
-      for (let y = 0; y < 8; y++) {
-        const element = document.getElementById(`${x}-${y}`);
-        element.classList.remove("highlight");
+  const newGame = () => {
+    setBoard(INITIALBOARD);
+    setSelectedPiece(null);
+    setPossibleMoves([]);
+    setCapturedPieces({ white: [], black: [] });
+    setCurrentPlayer(COLORS.WHITE);
+    setGameState(GAME_STATES.PLAYING);
+    setPromotion({ active: false, rowIndex: null, colIndex: null, color: null });
+    setIsAITurn(false);
+    setNotification(null);
+    removeHighlightClass();
+    
+    // Reset timer
+    resetTimer();
+    
+    // Reset chess service
+    chessService.current = new ChessService();
+  };
+
+  const undoMove = () => {
+    const history = chessService.current.moveHistory;
+    if (history.length === 0) return;
+    
+    // Remove last move from history
+    history.pop();
+    
+    // Reconstruct board from history
+    const newBoard = INITIALBOARD.map(row => row.slice());
+    history.forEach(move => {
+      const { from, to, piece, captured } = move;
+      newBoard[from.row][from.col] = piece;
+      if (captured) {
+        newBoard[to.row][to.col] = captured;
       }
+    });
+    
+    // Update captured pieces
+    const newCapturedPieces = { white: [], black: [] };
+    history.forEach(move => {
+      if (move.captured) {
+        const color = move.captured[1] === 'w' ? 'white' : 'black';
+        newCapturedPieces[color].push(move.captured);
+      }
+    });
+    
+    setBoard(newBoard);
+    setCapturedPieces(newCapturedPieces);
+    setCurrentPlayer(currentPlayer === COLORS.WHITE ? COLORS.BLACK : COLORS.WHITE);
+    setSelectedPiece(null);
+    setPossibleMoves([]);
+    setNotification(null);
+    removeHighlightClass();
+  };
+
+  const toggleAI = () => {
+    setAiEnabled(!aiEnabled);
+    if (!aiEnabled) {
+      // If enabling AI and it's AI's turn, make AI move
+      if (currentPlayer !== playerColor) {
+        setIsAITurn(true);
+      }
+    } else {
+      setIsAITurn(false);
     }
   };
 
+  const setAIDifficulty = (difficulty) => {
+    setAiDifficulty(difficulty);
+  };
+
+  const handleSetPlayerColor = (color) => {
+    setPlayerColor(color);
+    // If AI is enabled and it's now AI's turn, make AI move
+    if (aiEnabled && currentPlayer !== color) {
+      setIsAITurn(true);
+    }
+  };
+
+  const handleSetTimerMode = (mode) => {
+    setTimerMode(mode);
+    if (mode !== TIMER_MODES.NONE) {
+      const duration = TIMER_DURATIONS[mode];
+      setWhiteTime(duration);
+      setBlackTime(duration);
+    }
+  };
+
+  // Check if a specific king is in check
+  const isKingInCheck = (rowIndex, colIndex, piece) => {
+    if (!piece || piece[0].toUpperCase() !== 'K') return false;
+    const kingColor = piece[1];
+    return chessService.current.isKingInCheck(board, kingColor);
+  };
+
   return (
-    <div className="chess">
-      <div className="capturedPiece ">
-        {capturedPiecs.black.map((piece, index) => (
+    <div className="chess-container">
+      <Notification 
+        message={notification?.message} 
+        type={notification?.type} 
+        onClose={() => setNotification(null)} 
+      />
+      <div className="captured-pieces captured-black">
+        {capturedPieces.black.map((piece, index) => (
           <img
             key={index}
             src={`${process.env.PUBLIC_URL}/assets/${piece}.png`}
             alt={piece}
+            className="captured-piece"
           />
         ))}
       </div>
-      <div className="chessBoard">
+      
+      <div className="game-board-section">
+        <Timer
+          whiteTime={whiteTime}
+          blackTime={blackTime}
+          currentPlayer={currentPlayer}
+          timerMode={timerMode}
+          isGameActive={gameState === GAME_STATES.PLAYING}
+          onTimeout={handleTimeout}
+        />
+        <div className="chessBoard">
         {board.map((row, rowIndex) => (
           <div key={rowIndex} className="row">
             {row.map((piece, colIndex) => (
               <Cell
+                  key={`${rowIndex}-${colIndex}`}
                 piece={piece}
                 rowIndex={rowIndex}
                 colIndex={colIndex}
@@ -296,10 +478,12 @@ const Board = () => {
                   selectedPiece.colIndex === colIndex
                 }
                 onClick={() => selectPiece(rowIndex, colIndex)}
+                  isInCheck={isKingInCheck(rowIndex, colIndex, piece)}
               />
             ))}
           </div>
         ))}
+          
         {promotion.active && (
           <div className="promotion-modal">
             <div className="promotion-options">
@@ -307,7 +491,7 @@ const Board = () => {
                 src={
                   promotion.color === "w"
                     ? PIECESIMAGES.whiteQueen
-                    : PIECESIMAGES.blackQueenImg
+                      : PIECESIMAGES.blackQueen
                 }
                 alt="Queen"
                 onClick={() => pawnPromotion("Q")}
@@ -315,8 +499,8 @@ const Board = () => {
               <img
                 src={
                   promotion.color === "w"
-                    ? PIECESIMAGES.whiteRookImage
-                    : PIECESIMAGES.blackRookImage
+                      ? PIECESIMAGES.whiteRook
+                      : PIECESIMAGES.blackRook
                 }
                 alt="Rook"
                 onClick={() => pawnPromotion("R")}
@@ -324,8 +508,8 @@ const Board = () => {
               <img
                 src={
                   promotion.color === "w"
-                    ? PIECESIMAGES.whiteBishopImage
-                    : PIECESIMAGES.blackBishopImage
+                      ? PIECESIMAGES.whiteBishop
+                      : PIECESIMAGES.blackBishop
                 }
                 alt="Bishop"
                 onClick={() => pawnPromotion("B")}
@@ -333,8 +517,8 @@ const Board = () => {
               <img
                 src={
                   promotion.color === "w"
-                    ? PIECESIMAGES.whiteKnightImage
-                    : PIECESIMAGES.blackKnightImage
+                      ? PIECESIMAGES.whiteKnight
+                      : PIECESIMAGES.blackKnight
                 }
                 alt="Knight"
                 onClick={() => pawnPromotion("N")}
@@ -343,15 +527,34 @@ const Board = () => {
           </div>
         )}
       </div>
-      <div className="capturedPiece ">
-        {capturedPiecs.white.map((piece, index) => (
+      </div>
+      
+      <div className="captured-pieces captured-white">
+        {capturedPieces.white.map((piece, index) => (
           <img
             key={index}
             src={`${process.env.PUBLIC_URL}/assets/${piece}.png`}
             alt={piece}
+            className="captured-piece"
           />
         ))}
       </div>
+      
+      <GameControls
+        gameState={gameState}
+        currentPlayer={currentPlayer}
+        moveHistory={chessService.current.moveHistory}
+        aiEnabled={aiEnabled}
+        aiDifficulty={aiDifficulty}
+        gameMode={gameMode}
+        timerMode={timerMode}
+        onNewGame={newGame}
+        onUndoMove={undoMove}
+        onToggleAI={toggleAI}
+        onSetAIDifficulty={setAIDifficulty}
+        onSetPlayerColor={handleSetPlayerColor}
+        onSetTimerMode={handleSetTimerMode}
+      />
     </div>
   );
 };

@@ -1,11 +1,14 @@
 import "./style.css";
 
-const Cell = ({ rowIndex, colIndex, piece, isSelected, onClick,isInCheck }) => {
+const Cell = ({ rowIndex, colIndex, piece, isSelected, onClick, isInCheck }) => {
+  const isKing = piece && piece[0].toUpperCase() === 'K';
+  const isKingInCheck = isInCheck && isKing;
+  
   return (
     <div
       className={`square ${(rowIndex + colIndex) % 2 !== 0 && "black"} ${
         isSelected ? "selected" : ""
-      } ${isInCheck ? "check" : ""} `}
+      } ${isKingInCheck ? "check" : ""} `}
       id={`${rowIndex}-${colIndex}`}
       onClick={onClick}
     >
@@ -16,7 +19,7 @@ const Cell = ({ rowIndex, colIndex, piece, isSelected, onClick,isInCheck }) => {
 
 const Piece = ({ type }) => {
   return (
-    <img src={`${process.env.PUBLIC_URL}/assets/${type}.png`} alt="cell" />
+    <img src={`${process.env.PUBLIC_URL}/assets/${type}.png`} alt="piece" />
   );
 };
 

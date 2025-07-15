@@ -1,70 +1,142 @@
-# Getting Started with Create React App
+# Chess Game with AI
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A complete chess game built with React, featuring all standard chess rules and an AI opponent powered by Google's Gemini API.
 
-## Available Scripts
+## Features
 
-In the project directory, you can run:
+### Complete Chess Rules Implementation
+- ✅ **All piece movements** (King, Queen, Rook, Bishop, Knight, Pawn)
+- ✅ **Castling** (Kingside and Queenside)
+- ✅ **En Passant** capture
+- ✅ **Pawn Promotion** (Queen, Rook, Bishop, Knight)
+- ✅ **Check Detection**
+- ✅ **Checkmate Detection**
+- ✅ **Stalemate Detection**
+- ✅ **Move Validation** (prevents moves that put own king in check)
+- ✅ **Turn-based gameplay**
 
-### `npm start`
+### AI Integration
+- 🤖 **Gemini AI-powered opponent**
+- 🎯 **Three difficulty levels**: Easy, Medium, Hard
+- ⚡ **Smart move generation** with fallback to random moves
+- 🔄 **Automatic AI turns**
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+### User Interface
+- 🎨 **Modern, responsive design**
+- 📱 **Mobile-friendly layout**
+- 🎯 **Visual move highlighting**
+- 📊 **Move history tracking**
+- 🏆 **Captured pieces display**
+- ⚙️ **Game controls and settings**
+- 🔄 **Undo move functionality**
+- 🆕 **New game option**
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+### Game Management
+- 🎮 **Player vs Player mode**
+- 🤖 **Player vs AI mode**
+- 🎨 **Player color selection**
+- 📈 **Real-time game state updates**
+- 🏁 **Game end detection and display**
 
-### `npm test`
+## Setup Instructions
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+### 1. Install Dependencies
+```bash
+npm install
+```
 
-### `npm run build`
+### 2. Set up Gemini API Key
+To enable AI functionality, you need a Google Gemini API key:
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+1. Go to [Google AI Studio](https://makersuite.google.com/app/apikey)
+2. Create a new API key
+3. Create a `.env` file in the project root:
+```env
+REACT_APP_GEMINI_API_KEY=your_api_key_here
+```
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+### 3. Start the Development Server
+```bash
+npm start
+```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+The app will open at `http://localhost:3000`
 
-### `npm run eject`
+## How to Play
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+### Basic Gameplay
+1. **Select a piece** by clicking on it
+2. **Valid moves** will be highlighted in green
+3. **Click on a highlighted square** to move
+4. **Promote pawns** when they reach the opposite end
+5. **Checkmate** your opponent to win!
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+### AI Mode
+1. **Enable AI** in the game settings
+2. **Choose your color** (White or Black)
+3. **Select difficulty level** (Easy, Medium, Hard)
+4. **Play against the AI** - it will automatically make moves
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+### Game Controls
+- **New Game**: Start a fresh game
+- **Undo Move**: Go back one move (if available)
+- **Player Color**: Choose to play as White or Black
+- **AI Toggle**: Enable/disable AI opponent
+- **Difficulty**: Set AI difficulty level
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+## Technical Implementation
 
-## Learn More
+### Architecture
+- **React** for UI components
+- **Custom Chess Service** for game logic
+- **Gemini AI API** for computer opponent
+- **CSS Grid** for responsive board layout
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+### Key Components
+- `Board.jsx`: Main game board and logic
+- `ChessService.js`: Complete chess rules implementation
+- `AIService.js`: AI move generation using Gemini
+- `GameControls.jsx`: Game settings and controls
+- `Cell.jsx`: Individual board squares
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+### Chess Rules Implementation
+The chess service implements all standard chess rules:
+- **Piece movement validation**
+- **Check and checkmate detection**
+- **Special moves** (castling, en passant)
+- **Move history tracking**
+- **Game state management**
 
-### Code Splitting
+## Missing Features (Now Implemented)
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+The original chess game was missing several critical features that have now been added:
 
-### Analyzing the Bundle Size
+1. **Castling** - King and Rook special move
+2. **En Passant** - Pawn capture special move  
+3. **Checkmate Detection** - Game ending condition
+4. **Stalemate Detection** - Draw condition
+5. **Move Validation** - Preventing moves that put own king in check
+6. **Game State Management** - Turn tracking, game over states
+7. **Move History** - Tracking all moves made
+8. **AI Opponent** - Computer player using Gemini API
+9. **UI Improvements** - Game status, controls, responsive design
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+## API Usage
 
-### Making a Progressive Web App
+The AI service uses the Gemini API to generate intelligent moves:
+- Converts board position to FEN notation
+- Sends position to Gemini with chess-specific prompts
+- Parses AI response to extract valid moves
+- Falls back to random moves if AI fails
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+## Contributing
 
-### Advanced Configuration
+Feel free to contribute improvements:
+- Bug fixes
+- New features
+- UI/UX enhancements
+- Performance optimizations
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+## License
 
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+This project is open source and available under the MIT License.

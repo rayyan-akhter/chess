@@ -1,0 +1,22 @@
+.Screen{
+    width: 100vw;
+    height: 100vh;
+    padding-top: 20px;
+    padding-left: 20px;
+   
+}
+.rectangle{
+    width: 400px;
+    height: 200px;
+    border: black solid 2px;
+    position: absolute;
+    top: 0;
+    
+}
+
+.slide-container{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+}
