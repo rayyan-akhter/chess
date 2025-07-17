@@ -2,9 +2,8 @@ import React, { useRef, useState, useEffect, useCallback } from "react";
 import Cell from "../Cell";
 import GameControls from "../GameControls";
 import Notification from "../Notification";
-import Timer from "../Timer";
 import "./style.css";
-import { PIECESIMAGES, INITIALBOARD, GAME_STATES, COLORS, TIMER_MODES, TIMER_DURATIONS } from "./boardconstant";
+import { PIECESIMAGES, INITIALBOARD, GAME_STATES, COLORS } from "./boardconstant";
 import ChessService from "../../services/chessService";
 import AIService from "../../services/aiService";
 
@@ -28,74 +27,12 @@ const Board = ({ gameMode = '2player', playerColor: initialPlayerColor = 'white'
   const [playerColor, setPlayerColor] = useState(initialPlayerColor === 'white' ? COLORS.WHITE : COLORS.BLACK);
   const [isAITurn, setIsAITurn] = useState(false);
   
-  // Timer settings
-  const [timerMode, setTimerMode] = useState(TIMER_MODES.NONE);
-  const [whiteTime, setWhiteTime] = useState(TIMER_DURATIONS[TIMER_MODES.TEN_MIN]);
-  const [blackTime, setBlackTime] = useState(TIMER_DURATIONS[TIMER_MODES.TEN_MIN]);
-  const [timerInterval, setTimerInterval] = useState(null);
-  
   // Notifications
   const [notification, setNotification] = useState(null);
   
   // Services
   const chessService = useRef(new ChessService());
   const aiService = useRef(null);
-
-  // Timer functions
-  const startTimer = useCallback(() => {
-    if (timerMode === TIMER_MODES.NONE || gameState !== GAME_STATES.PLAYING) {
-      return;
-    }
-
-    const interval = setInterval(() => {
-      if (currentPlayer === COLORS.WHITE) {
-        setWhiteTime(prev => {
-          if (prev <= 1) {
-            clearInterval(interval);
-            handleTimeout(COLORS.WHITE);
-            return 0;
-          }
-          return prev - 1;
-        });
-      } else {
-        setBlackTime(prev => {
-          if (prev <= 1) {
-            clearInterval(interval);
-            handleTimeout(COLORS.BLACK);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }
-    }, 1000);
-
-    setTimerInterval(interval);
-  }, [timerMode, currentPlayer, gameState, handleTimeout]);
-
-  const stopTimer = useCallback(() => {
-    if (timerInterval) {
-      clearInterval(timerInterval);
-      setTimerInterval(null);
-    }
-  }, [timerInterval]);
-
-  const handleTimeout = useCallback((timeoutPlayer) => {
-    stopTimer();
-    setGameState(GAME_STATES.TIMEOUT);
-    setNotification({
-      message: `⏰ Time's up! ${timeoutPlayer === 'w' ? 'White' : 'Black'} ran out of time. ${timeoutPlayer === 'w' ? 'Black' : 'White'} wins!`,
-      type: 'error'
-    });
-  }, [stopTimer]);
-
-  const resetTimer = useCallback(() => {
-    stopTimer();
-    if (timerMode !== TIMER_MODES.NONE) {
-      const duration = TIMER_DURATIONS[timerMode];
-      setWhiteTime(duration);
-      setBlackTime(duration);
-    }
-  }, [timerMode, stopTimer]);
   
   // Initialize AI service
   useEffect(() => {
@@ -182,20 +119,7 @@ const Board = ({ gameMode = '2player', playerColor: initialPlayerColor = 'white'
     }
   }, [board, currentPlayer, aiDifficulty, aiEnabled, playerColor, executeMove]);
 
-  // Timer effect
-  useEffect(() => {
-    if (timerMode !== TIMER_MODES.NONE && gameState === GAME_STATES.PLAYING) {
-      startTimer();
-    } else {
-      stopTimer();
-    }
 
-    return () => {
-      if (timerInterval) {
-        clearInterval(timerInterval);
-      }
-    };
-  }, [timerMode, currentPlayer, gameState, startTimer, stopTimer, timerInterval]);
 
   // Check game state after each move
   useEffect(() => {
@@ -207,13 +131,11 @@ const Board = ({ gameMode = '2player', playerColor: initialPlayerColor = 'white'
     
     // Show game end notifications
     if (newGameState === GAME_STATES.CHECKMATE) {
-      stopTimer();
       setNotification({
         message: `🎉 Checkmate! ${currentPlayer === 'w' ? 'Black' : 'White'} wins!`,
         type: 'success'
       });
     } else if (newGameState === GAME_STATES.STALEMATE) {
-      stopTimer();
       setNotification({
         message: '🤝 Stalemate! The game is a draw.',
         type: 'warning'
@@ -247,7 +169,7 @@ const Board = ({ gameMode = '2player', playerColor: initialPlayerColor = 'white'
     } else {
       console.log('❌ AI turn conditions not met');
     }
-  }, [board, currentPlayer, aiEnabled, playerColor, isAITurn, makeAIMove, stopTimer]);
+  }, [board, currentPlayer, aiEnabled, playerColor, isAITurn, makeAIMove]);
 
   const selectPiece = (rowIndex, colIndex) => {
     // Don't allow moves during AI turn or if game is over
@@ -354,9 +276,6 @@ const Board = ({ gameMode = '2player', playerColor: initialPlayerColor = 'white'
     setNotification(null);
     removeHighlightClass();
     
-    // Reset timer
-    resetTimer();
-    
     // Reset chess service
     chessService.current = new ChessService();
   };
@@ -420,14 +339,7 @@ const Board = ({ gameMode = '2player', playerColor: initialPlayerColor = 'white'
     }
   };
 
-  const handleSetTimerMode = (mode) => {
-    setTimerMode(mode);
-    if (mode !== TIMER_MODES.NONE) {
-      const duration = TIMER_DURATIONS[mode];
-      setWhiteTime(duration);
-      setBlackTime(duration);
-    }
-  };
+
 
   // Check if a specific king is in check
   const isKingInCheck = (rowIndex, colIndex, piece) => {
@@ -455,14 +367,6 @@ const Board = ({ gameMode = '2player', playerColor: initialPlayerColor = 'white'
       </div>
       
       <div className="game-board-section">
-        <Timer
-          whiteTime={whiteTime}
-          blackTime={blackTime}
-          currentPlayer={currentPlayer}
-          timerMode={timerMode}
-          isGameActive={gameState === GAME_STATES.PLAYING}
-          onTimeout={handleTimeout}
-        />
         <div className="chessBoard">
         {board.map((row, rowIndex) => (
           <div key={rowIndex} className="row">
@@ -547,13 +451,11 @@ const Board = ({ gameMode = '2player', playerColor: initialPlayerColor = 'white'
         aiEnabled={aiEnabled}
         aiDifficulty={aiDifficulty}
         gameMode={gameMode}
-        timerMode={timerMode}
         onNewGame={newGame}
         onUndoMove={undoMove}
         onToggleAI={toggleAI}
         onSetAIDifficulty={setAIDifficulty}
         onSetPlayerColor={handleSetPlayerColor}
-        onSetTimerMode={handleSetTimerMode}
       />
     </div>
   );

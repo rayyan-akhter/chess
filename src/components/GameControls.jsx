@@ -8,13 +8,11 @@ const GameControls = ({
   aiEnabled,
   aiDifficulty,
   gameMode = '2player',
-  timerMode = 'none',
   onNewGame,
   onUndoMove,
   onToggleAI,
   onSetAIDifficulty,
-  onSetPlayerColor,
-  onSetTimerMode
+  onSetPlayerColor
 }) => {
   const getGameStatusText = () => {
     switch (gameState) {
@@ -100,19 +98,7 @@ const GameControls = ({
           </>
         )}
 
-        <div className="setting-group">
-          <label>Timer Mode:</label>
-          <select 
-            value={timerMode} 
-            onChange={(e) => onSetTimerMode(e.target.value)}
-            disabled={moveHistory.length > 0}
-          >
-            <option value="none">No Timer</option>
-            <option value="10min">10 Minutes</option>
-            <option value="15min">15 Minutes</option>
-            <option value="30min">30 Minutes</option>
-          </select>
-        </div>
+
 
         {gameMode === '2player' && (
           <div className="setting-group">

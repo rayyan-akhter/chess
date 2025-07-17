@@ -29,24 +29,10 @@ export const GAME_STATES = {
   CHECK: 'check',
   CHECKMATE: 'checkmate',
   STALEMATE: 'stalemate',
-  DRAW: 'draw',
-  TIMEOUT: 'timeout'
+  DRAW: 'draw'
 };
 
 export const COLORS = {
   WHITE: 'w',
   BLACK: 'b'
-};
-
-export const TIMER_MODES = {
-  NONE: 'none',
-  TEN_MIN: '10min',
-  FIFTEEN_MIN: '15min',
-  THIRTY_MIN: '30min'
-};
-
-export const TIMER_DURATIONS = {
-  [TIMER_MODES.TEN_MIN]: 10 * 60, // 10 minutes in seconds
-  [TIMER_MODES.FIFTEEN_MIN]: 15 * 60, // 15 minutes in seconds
-  [TIMER_MODES.THIRTY_MIN]: 30 * 60 // 30 minutes in seconds
 };  
