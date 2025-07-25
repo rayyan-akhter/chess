@@ -1,4 +1,4 @@
-import { GAME_STATES } from '../components/board/boardconstant';
+import { GAME_STATES, INITIALBOARD } from '../components/board/boardconstant';
 
 export class ChessService {
   constructor() {
@@ -534,10 +534,43 @@ export class ChessService {
       captured: capturedPiece,
       isCastling: moveData.isCastling,
       isEnPassant: moveData.isEnPassant,
-      isDoubleMove: moveData.isDoubleMove
+      isDoubleMove: moveData.isDoubleMove,
+      side: moveData.side // Add castling side information
     });
     
     return newBoard;
+  }
+
+  // Reconstruct board from move history
+  reconstructBoardFromHistory(moveHistory) {
+    const board = INITIALBOARD.map(row => row.slice());
+    
+    moveHistory.forEach(move => {
+      const { from, to, piece, captured, isCastling, isEnPassant, side } = move;
+      
+      // Handle castling
+      if (isCastling) {
+        const rookFromCol = side === 'kingside' ? 7 : 0;
+        const rookToCol = side === 'kingside' ? 5 : 3;
+        const rookPiece = board[from.row][rookFromCol];
+        
+        board[from.row][rookFromCol] = '';
+        board[from.row][rookToCol] = rookPiece;
+      }
+      
+      // Handle en passant
+      if (isEnPassant) {
+        const capturedPawnRow = from.row;
+        const capturedPawnCol = to.col;
+        board[capturedPawnRow][capturedPawnCol] = '';
+      }
+      
+      // Regular move
+      board[from.row][from.col] = '';
+      board[to.row][to.col] = piece;
+    });
+    
+    return board;
   }
 }
 

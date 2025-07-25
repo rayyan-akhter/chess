@@ -44,6 +44,22 @@
   transform: translate(-50%, -50%);
 }
 
+.square.previous-move {
+  background-color: #FFA500 !important;
+  position: relative;
+}
+
+.square.previous-move::after {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border: 3px solid #FF8C00;
+  border-radius: 2px;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
 .square.check {
   background-color: #FF6B6B !important;
   animation: pulse 1s infinite;

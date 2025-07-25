@@ -21,6 +21,9 @@ const Board = ({ gameMode = '2player', playerColor: initialPlayerColor = 'white'
     color: null,
   });
 
+  // Previous move tracking
+  const [previousMove, setPreviousMove] = useState(null);
+
   // AI and game settings
   const [aiEnabled, setAiEnabled] = useState(gameMode === 'ai');
   const [aiDifficulty, setAiDifficulty] = useState(initialAIDifficulty);
@@ -70,6 +73,12 @@ const Board = ({ gameMode = '2player', playerColor: initialPlayerColor = 'white'
     // Execute move using chess service
     const newBoard = chessService.current.executeMove(board, fromRow, fromCol, toRow, toCol, moveData);
     setBoard(newBoard);
+
+    // Update previous move
+    setPreviousMove({
+      from: { row: fromRow, col: fromCol },
+      to: { row: toRow, col: toCol }
+    });
 
     // Handle pawn promotion
     if (piece[0].toUpperCase() === 'P' && 
@@ -272,6 +281,7 @@ const Board = ({ gameMode = '2player', playerColor: initialPlayerColor = 'white'
     setCurrentPlayer(COLORS.WHITE);
     setGameState(GAME_STATES.PLAYING);
     setPromotion({ active: false, rowIndex: null, colIndex: null, color: null });
+    setPreviousMove(null);
     setIsAITurn(false);
     setNotification(null);
     removeHighlightClass();
@@ -287,15 +297,8 @@ const Board = ({ gameMode = '2player', playerColor: initialPlayerColor = 'white'
     // Remove last move from history
     history.pop();
     
-    // Reconstruct board from history
-    const newBoard = INITIALBOARD.map(row => row.slice());
-    history.forEach(move => {
-      const { from, to, piece, captured } = move;
-      newBoard[from.row][from.col] = piece;
-      if (captured) {
-        newBoard[to.row][to.col] = captured;
-      }
-    });
+    // Reconstruct board from remaining history
+    const newBoard = chessService.current.reconstructBoardFromHistory(history);
     
     // Update captured pieces
     const newCapturedPieces = { white: [], black: [] };
@@ -311,6 +314,18 @@ const Board = ({ gameMode = '2player', playerColor: initialPlayerColor = 'white'
     setCurrentPlayer(currentPlayer === COLORS.WHITE ? COLORS.BLACK : COLORS.WHITE);
     setSelectedPiece(null);
     setPossibleMoves([]);
+    
+    // Update previous move based on history
+    if (history.length > 0) {
+      const previousLastMove = history[history.length - 1];
+      setPreviousMove({
+        from: previousLastMove.from,
+        to: previousLastMove.to
+      });
+    } else {
+      setPreviousMove(null);
+    }
+    
     setNotification(null);
     removeHighlightClass();
   };
@@ -383,6 +398,11 @@ const Board = ({ gameMode = '2player', playerColor: initialPlayerColor = 'white'
                 }
                 onClick={() => selectPiece(rowIndex, colIndex)}
                   isInCheck={isKingInCheck(rowIndex, colIndex, piece)}
+                  isPreviousMove={
+                    previousMove &&
+                    ((previousMove.from.row === rowIndex && previousMove.from.col === colIndex) ||
+                     (previousMove.to.row === rowIndex && previousMove.to.col === colIndex))
+                  }
               />
             ))}
           </div>

@@ -1,6 +1,6 @@
 import "./style.css";
 
-const Cell = ({ rowIndex, colIndex, piece, isSelected, onClick, isInCheck }) => {
+const Cell = ({ rowIndex, colIndex, piece, isSelected, onClick, isInCheck, isPreviousMove }) => {
   const isKing = piece && piece[0].toUpperCase() === 'K';
   const isKingInCheck = isInCheck && isKing;
   
@@ -8,7 +8,9 @@ const Cell = ({ rowIndex, colIndex, piece, isSelected, onClick, isInCheck }) => 
     <div
       className={`square ${(rowIndex + colIndex) % 2 !== 0 && "black"} ${
         isSelected ? "selected" : ""
-      } ${isKingInCheck ? "check" : ""} `}
+      } ${isKingInCheck ? "check" : ""} ${
+        isPreviousMove ? "previous-move" : ""
+      }`}
       id={`${rowIndex}-${colIndex}`}
       onClick={onClick}
     >
